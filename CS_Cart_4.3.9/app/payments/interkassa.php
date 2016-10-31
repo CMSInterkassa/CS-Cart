@@ -4,7 +4,7 @@
  * Разработка модуля GateOn
  * www.gateon.net
  * www@smartbyte.pro
- * Версия 1.2 2016
+ * Версия 1.1 2016
  */
 
 //error_reporting(E_ALL);ini_set("display_errors", 0);
@@ -16,6 +16,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
     $order_id = !empty($_REQUEST['ik_pm_no']) ? $_REQUEST['ik_pm_no'] : 0;
 
     if ($mode == 'notify') {
+        if(!checkIP()) exit();
             $pp_response = array(
                 'order_status' => 'P'
             );
@@ -29,8 +30,13 @@ if (defined('PAYMENT_NOTIFICATION')) {
             $payment_id = db_get_field("SELECT payment_id FROM ?:orders WHERE order_id = ?i", $order_id);
             $processor_data = fn_get_payment_method_data($payment_id);
 
-            $ik_key = $processor_data['processor_params']['sekret_key'];
             $merchant_id = $processor_data['processor_params']['merchant_id'];
+            
+            if(isset($_REQUEST['ik_pw_via']) && $_REQUEST['ik_pw_via'] == 'test_interkassa_test_xts'){
+                $key = $processor_data['processor_params']['test_key'];
+            } else {
+                $key = $processor_data['processor_params']['sekret_key'];
+            }
 
             $data = array();
             foreach ($_REQUEST as $key => $value) {
@@ -45,11 +51,11 @@ if (defined('PAYMENT_NOTIFICATION')) {
             unset($data['ik_sign']);
             ksort($data, SORT_STRING);
 
-            array_push($data, $ik_key);
+            array_push($data, $key);
             $signString = implode(':', $data);
             $sign = base64_encode(md5($signString, true));
 
-            if ($sign === $ik_sign || $data['ik_co_id'] === $merchant_id) {
+            if ($sign === $ik_sign && $data['ik_co_id'] === $merchant_id) {
                 $pp_response = array(
                     'order_status' => 'P'
                 );
@@ -211,6 +217,18 @@ function fn_paymaster_get_sum($order_info, $processor_data)
     }
 
     return sprintf('%.2f', $price);
+}
+
+function checkIP(){
+    $ip_stack = array(
+        'ip_begin'=>'151.80.190.97',
+        'ip_end'=>'151.80.190.104'
+    );
+
+    if(!ip2long($_SERVER['REMOTE_ADDR'])>=ip2long($ip_stack['ip_begin']) && !ip2long($_SERVER['REMOTE_ADDR'])<=ip2long($ip_stack['ip_end'])){
+        exit();
+    }
+    return true;
 }
 
 exit;
