@@ -29,6 +29,13 @@
 </div>
 
 <div class="control-group">
+	<label class="control-label" for="api_mode">API:</label>
+	<div class="controls">
+		<input type="checkbox" name="payment_data[processor_params][api_mode]" id="api_mode"{if $processor_params.api_mode} checked="checked" {/if}>
+	</div>
+</div>
+
+<div class="control-group">
 	<label class="control-label" for="api_id">API ID:</label>
 	<div class="controls">
 		<input type="text" name="payment_data[processor_params][api_id]" id="api_id" value="{$processor_params.api_id}" class="input-text" size="100" />

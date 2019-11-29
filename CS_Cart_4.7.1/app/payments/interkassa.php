@@ -247,7 +247,10 @@ if (defined('PAYMENT_NOTIFICATION')) {
 
 // var_dump($post_data);
 // die();
-    // fn_create_payment_form($post_address, $post_data, 'Interkassa', false);
+    if(!isset($processor_data['processor_params']['api_mode'])){
+        fn_create_payment_form($post_address, $post_data, 'Interkassa', false);
+    } 
+    //fn_create_payment_form($post_address, $post_data, 'Interkassa', false);
 }
 
 function fn_paymaster_get_sum($order_info, $processor_data)
@@ -290,9 +293,59 @@ function SignCraft($data,$secret_key)
 
   return $sign;
 }
+
+
+function getIkBusinessAcc($username = '', $password = '')         {
+            $tmpLocationFile = __DIR__ . '/tmpLocalStorageBusinessAcc.ini';
+            $dataBusinessAcc = function_exists('file_get_contents') ? file_get_contents($tmpLocationFile) : '{}';
+            $dataBusinessAcc = json_decode($dataBusinessAcc, 1);
+            $businessAcc = is_string($dataBusinessAcc['businessAcc']) ? trim($dataBusinessAcc['businessAcc']) : '';
+            if (empty($businessAcc) || sha1($username . $password) !== $dataBusinessAcc['hash']) {
+                $curl = curl_init();
+                curl_setopt($curl, CURLOPT_URL, 'https://api.interkassa.com/v1/' . 'account');
+                curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($curl, CURLOPT_FOLLOWLOCATION, false);
+                curl_setopt($curl, CURLOPT_HEADER, false);
+                curl_setopt($curl, CURLOPT_HTTPHEADER, ["Authorization: Basic " . base64_encode("$username:$password")]);
+                $response = curl_exec($curl);
+                $response = json_decode($response,1);
+
+
+                if (!empty($response['data'])) {
+                    foreach ($response['data'] as $id => $data) {
+                        if ($data['tp'] == 'b') {
+                            $businessAcc = $id;
+                            break;
+                        }
+                    }
+                }
+
+                if (function_exists('file_put_contents')) {
+                    $updData = [
+                        'businessAcc' => $businessAcc,
+                        'hash' => sha1($username . $password)
+                    ];
+                    file_put_contents($tmpLocationFile, json_encode($updData, JSON_PRETTY_PRINT));
+                }
+
+                return $businessAcc;
+            }
+
+            return $businessAcc;
+    }
+
 function getIkPaymentSystems($uid,$aid,$ake)
 {
-  $json_data = json_decode(file_get_contents("https://api.interkassa.com/v1/paysystem-input-payway?checkoutId=$uid",false,stream_context_create(array('http'=>array('method'=>"GET",'header'=>"Authorization: Basic ".base64_encode("$aid:$ake"))))));
+
+  $businessAcc = getIkBusinessAcc($aid, $ake);   
+          $ikHeaders = [];
+        $ikHeaders[] = "Authorization: Basic " . base64_encode("$aid:$ake");
+        if (!empty($businessAcc)) {
+            $ikHeaders[] = "Ik-Api-Account-Id: " . $businessAcc;
+        }
+    
+  $json_data = json_decode(file_get_contents("https://api.interkassa.com/v1/paysystem-input-payway?checkoutId=$uid",false,stream_context_create(array('http'=>array('method'=>"GET",'header'=>$ikHeaders)))));
   if($json_data->status != 'error'){
 
     $payment_systems = array();
@@ -310,4 +363,6 @@ function getIkPaymentSystems($uid,$aid,$ake)
     return $payment_systems;
   }else echo '<strong style="color:red;">API connection error!<br>'.$json_data->message.'</strong>';
 }
+
+
 exit;
